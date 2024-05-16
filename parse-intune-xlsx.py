@@ -45,17 +45,37 @@ def is_supported(os_version, build_data, os_name):
             else:
                 eol_date = datetime.datetime.strptime(eol_date, "%Y-%m-%d").date()
                 build['supported'] = "Supported" if today <= eol_date else "End of Life"
-            
             return build
+        
         elif os_name.startswith('Android'):
+            major_version = '.'.join(str(os_version).split('.')[:2])  # Dropping the third period and anything after
             for build in build_data:
-                if str(build['cycle']) == str(os_version):
+                if str(build['cycle']) == major_version:
                     eol_date = build.get('eol', None)
                     if eol_date is False:  # Checking for 'false' explicitly, as it represents no end of life
-                        return "No EoL"
-                    if isinstance(eol_date, str):
+                        build['supported'] = "No EoL"
+                    elif isinstance(eol_date, str):
                         eol_date = datetime.datetime.strptime(eol_date, "%Y-%m-%d").date()
-                        return "Supported" if today <= eol_date else "End of Life"
+                        build['supported'] = "Supported" if today <= eol_date else "End of Life"
+                    else:
+                        build['supported'] = "Unknown"
+                    return build
+                
+            if not any(str(build['cycle']) == major_version for build in build_data):
+                major_version = str(os_version).split('.')[0]
+                for build in build_data:
+                    if str(build['cycle']) == major_version:
+                        eol_date = build.get('eol', None)
+                        if eol_date is False:  # Checking for 'false' explicitly, as it represents no end of life
+                            build['supported'] = "No EoL"
+                        elif isinstance(eol_date, str):
+                            eol_date = datetime.datetime.strptime(eol_date, "%Y-%m-%d").date()
+                            build['supported'] = "Supported" if today <= eol_date else "End of Life"
+                        else:
+                            build['supported'] = "Unknown"
+                        return build
+
+            return {"supported": "Unknown Version", "releaseDate": "N/A", "eol": "N/A", "codename": "N/A"}
                     
         elif os_name in ['iOS/iPadOS', 'macOS']:
             major_version = str(os_version).split('.')[0]
@@ -63,12 +83,15 @@ def is_supported(os_version, build_data, os_name):
                 if str(build['cycle']) == str(major_version):
                     eol_date = build.get('eol', None)
                     if eol_date is False:
-                        return "No EoL"
-                    if isinstance(eol_date, str):
+                        build['supported'] = "No EoL"
+                    elif isinstance(eol_date, str):
                         eol_date = datetime.datetime.strptime(eol_date, "%Y-%m-%d").date()
-                        return "Supported" if today <= eol_date else "End of Life"
+                        build['supported'] = "Supported" if today <= eol_date else "End of Life"
+                    else:
+                        build['supported'] = "Unknown"
+                    return build
                     
-        return "Unknown Version"
+        return {"supported": "Unknown Version", "releaseDate": "N/A", "eol": "N/A", "codename": "N/A"}
     except (IndexError, AttributeError, ValueError):  # Handling cases with empty or malformed data
         return "Invalid Data"
 
@@ -103,15 +126,15 @@ def process_excel(file_path, sheet_name, os_data):
                 )
             else:
                 # For Android, iOS/iPadOS, and macOS, continue using 'cycle'
-                os_df.loc[:, 'Supported'] = os_df.apply(lambda x: is_supported(x['OS version'], build_data, os_name), axis=1)
-                os_df.loc[:, 'Release Date'] = os_df['OS version'].apply(lambda x: next((build['releaseDate'] for build in build_data if str(build['cycle']) == str(x).split('.')[0]), "N/A"))
-                os_df.loc[:, 'EOL Date'] = os_df['OS version'].apply(lambda x: next((build.get('eol', "N/A") for build in build_data if str(build['cycle']) == str(x).split('.')[0]), "N/A"))
+                os_df.loc[:, 'Supported'] = os_df['OS version'].apply(lambda x: is_supported(x, build_data, os_name)['supported'] if is_supported(x, build_data, os_name) else "Unknown Version")
+                os_df.loc[:, 'Release Date'] = os_df['OS version'].apply(lambda x: is_supported(x, build_data, os_name)['releaseDate'] if is_supported(x, build_data, os_name) else "N/A")
+                os_df.loc[:, 'EOL Date'] = os_df['OS version'].apply(lambda x: is_supported(x, build_data, os_name).get('eol', "N/A") if is_supported(x, build_data, os_name) else "N/A")
                 if os_name.startswith('Android'):
-                    os_df.loc[:, 'Codename'] = os_df['OS version'].apply(lambda x: next((build.get('codename', "N/A") for build in build_data if str(build['cycle']) == str(x)), "N/A"))
+                    os_df.loc[:, 'Codename'] = os_df['OS version'].apply(lambda x: is_supported(x, build_data, os_name).get('codename', "N/A") if is_supported(x, build_data, os_name) else "N/A")
                 elif os_name in ['iOS/iPadOS', 'macOS']:
                     os_df.loc[:, 'Latest Version'] = os_df['OS version'].apply(
-                    lambda x: is_latest(re.match(r"([\d\.]+)", str(x)).group(1) if re.match(r"([\d\.]+)", str(x)) else str(x), build_data)
-                )
+                        lambda x: is_latest(re.match(r"([\d\.]+)", str(x)).group(1) if re.match(r"([\d\.]+)", str(x)) else str(x), build_data)
+                    )
 
             with pd.ExcelWriter(file_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
                 clean_os_name = re.sub(r'[^a-zA-Z0-9 ()_-]', '', os_name)

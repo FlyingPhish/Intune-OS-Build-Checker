@@ -6,21 +6,23 @@ This Python script analyzes a given XLSX file containing OS version information 
 - Ensure that any date columns are formatted as Date.
 - I would highly recommend adding necessary columns via the Intune web GUI before clicking export. I recommend the following:
     - Device Name
-    - Managed by
-    - Ownership
     - Compliance
-    - OS
-    - OS version
     - Device state
-    - Primary user UPN
-    - Enrollment date
-    - Last check-in
     - EAS activated
-    - Intune registered
     - Encrypted
+    - Enrollment date
+    - Intune registered
+    - Join type
+    - Last check-in
+    - Managed by
     - Microsoft Entra Device ID
     - Microsoft Entra registered
-    - Join type
+    - Model
+    - OS
+    - OS version
+    - Ownership
+    - Primary user UPN
+
 - **I WOULD HIGHLY AVOID THE FOLLOWING:**
     - Compliance grace period expiration
     - Any of the EAS ones that I haven't mentioned above, especially Last EAS sync time.
