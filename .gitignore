@@ -2,3 +2,6 @@ old/
 .venv/
 __pycache__
 .DS_Store
+*.json
+*.xlsx
+*.csv
